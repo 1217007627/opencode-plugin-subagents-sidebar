@@ -1,19 +1,20 @@
 # OpenCode Subagents Sidebar
 
-[![CI](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/actions/workflows/ci.yml/badge.svg)](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/andy-takker/opencode-plugin-subagents-sidebar)](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/releases/latest)
-[![MIT license](https://img.shields.io/github/license/andy-takker/opencode-plugin-subagents-sidebar)](LICENSE)
+[![CI](https://github.com/1217007627/opencode-plugin-subagents-sidebar/actions/workflows/ci.yml/badge.svg)](https://github.com/1217007627/opencode-plugin-subagents-sidebar/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/1217007627/opencode-plugin-subagents-sidebar)](https://github.com/1217007627/opencode-plugin-subagents-sidebar/releases/latest)
+[![MIT license](https://img.shields.io/github/license/1217007627/opencode-plugin-subagents-sidebar)](LICENSE)
 [![OpenCode V2](https://img.shields.io/badge/OpenCode-V2%202.2.5-18181b)](docs/compatibility.md)
 
-**A live subagent monitor for the OpenCode terminal UI.** Track parallel AI agents,
-nested tasks and execution status in a collapsible sidebar. Click any task to
-open its session without losing sight of the rest of the session tree.
+**A live subagent monitor for the OpenCode terminal UI.** Track parallel AI agents
+in a compact `Task` sidebar with one-cell status icons, stable creation-time
+ordering and automatic clearing of old work. Click any task to open its session
+without losing sight of the rest of the session tree.
 
 [Installation](#installation) · [Features](#features) ·
 [Compatibility](docs/compatibility.md) · [Contributing](CONTRIBUTING.md) ·
-[Report a bug](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/issues/new?template=bug_report.yml)
+[Report a bug](https://github.com/1217007627/opencode-plugin-subagents-sidebar/issues/new?template=bug_report.yml)
 
-**Available on [npm](https://www.npmjs.com/package/opencode-plugin-subagents-sidebar/v/0.2.1) and as a [GitHub release](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/releases/tag/v0.2.1).**
+**Available on [npm](https://www.npmjs.com/package/opencode-plugin-subagents-sidebar/v/0.2.1) and as a [GitHub release](https://github.com/1217007627/opencode-plugin-subagents-sidebar/releases/tag/v0.2.1).**
 
 ## Quick start
 
@@ -38,19 +39,10 @@ expand **Task**, or run `/subagents` to search tasks even with the sidebar
 hidden. An empty tree shows only the header. See [installation](#installation)
 for archive and source-checkout alternatives.
 
-## Demo
-
-![Subagents Sidebar v0.2.0 in Warp: nested tree, durations and searchable keyboard chooser](https://raw.githubusercontent.com/andy-takker/opencode-plugin-subagents-sidebar/main/docs/assets/demo.gif)
-
-Captured in **Warp** using the actual plugin components and **demonstration data**,
-not a live agent execution. Time-compressed captures show the nested tree and the
-keyboard chooser/search. The recording predates the current compact header.
-The recording is cropped; no private conversations or real task data are included.
-
 ## Features
 
 Expanded by default; click the arrow or header to collapse the list. The header
-uses a lowercase label and shows no total count:
+uses the `Task` label and shows no total count:
 
 ```text
 ▶ Task (2 running)
@@ -86,7 +78,7 @@ is easy to spot at a glance.
 
 - The expanded/collapsed choice survives navigation for this plugin context;
   restarting OpenCode or reloading the plugin resets it.
-- Branches containing Running/Waiting tasks appear first; finished tasks stay visible.
+- Siblings are ordered newest-created first; the order never changes after creation.
 - Navigating into a child keeps the same tree. Switching roots changes the list.
 - Restores existing tasks, follows lifecycle events, and uses your current theme.
 
@@ -126,13 +118,12 @@ the same root tree.
 `Waiting` means the server confirms an unanswered permission request or form for
 that subagent. It takes precedence over Running and previous terminal outcomes;
 Running also overrides a previous error. Idle alone never means waiting or stuck.
-Waiting and Running both give their branch priority in the tree ordering.
 
-The collapsed header shows only running tasks as `(N running)`. Once
-expanded, Waiting spins and Error shows `✗` in the icon column; the complete
-history is always visible. Each subagent contributes to at most one status,
-even with several pending requests. Click a row to open the host session and
-respond there. The plugin never answers forms or grants permissions.
+The collapsed header shows only running tasks as `(N running)`. Once expanded,
+Waiting spins and Error shows `✗` in the icon column. Each subagent contributes
+to at most one status, even with several pending requests. Click a row to open
+the host session and respond there. The plugin never answers forms or grants
+permissions.
 
 Replies/cancellations refresh the state; Waiting clears when no request remains.
 Reconnect restores pending requests from the server. A new execution clears a
@@ -195,7 +186,7 @@ the release archive does not need a separate dependency installation.
 Clone this repository and install development dependencies with Bun 1.3.13:
 
 ```sh
-git clone --branch v0.2.1 https://github.com/andy-takker/opencode-plugin-subagents-sidebar.git
+git clone --branch v0.2.1 https://github.com/1217007627/opencode-plugin-subagents-sidebar.git
 cd opencode-plugin-subagents-sidebar
 bun install --frozen-lockfile
 bun run check
@@ -229,6 +220,10 @@ on macOS arm64**. Follow [Quick start](#quick-start) to add the pinned package
 name to `cli.json`. OpenCode resolves the package; a separate `npm install` in
 your project is not needed. Do not enable both the npm package and a local copy.
 
+> **Note:** the compact `Task` header, status icons, creation-time ordering and
+> automatic clearing described above are **not yet published to npm**. To use
+> them, install from a local build or source checkout as described below.
+
 Version 0.2.0's raw TSX fails when installed by npm name in OpenCode 2.2.5
 (`Cannot find package 'react'`). Use 0.2.1's precompiled package; installing React
 is not a workaround. The same host-owned Solid/OpenTUI runtime is used.
@@ -251,7 +246,7 @@ fetch tags and switch to the desired release tag before running the checks.
 - No section: verify the package path and inspect
   `~/.local/share/opencode/log/opencode.log` for plugin loading errors.
 - Include OpenCode version, OS, installation method and reproduction steps in an
-  [issue](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/issues).
+  [issue](https://github.com/1217007627/opencode-plugin-subagents-sidebar/issues).
   Remove private task names, paths and credentials from logs.
 
 The plugin reads session metadata and pending-request lists through OpenCode's authenticated client; it
