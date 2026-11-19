@@ -78,6 +78,30 @@ test("subtrees stay grouped below parents, ordered by newest sibling first and i
   ])
 })
 
+test("sibling order follows creation time and stays fixed when tasks update", () => {
+  const older = {
+    id: "older",
+    parentID: "root",
+    time: { created: 100, updated: 9_000 },
+  }
+  const newer = {
+    id: "newer",
+    parentID: "root",
+    time: { created: 200, updated: 100 },
+  }
+  const records = [
+    { id: "root", time: { created: 1, updated: 1 } },
+    older,
+    newer,
+  ]
+  const ids = () =>
+    buildRows("root", records, new Map<string, LiveStatus>()).map((r) => r.id)
+  expect(ids()).toEqual(["newer", "older"])
+  older.time.updated = 10_000
+  newer.time.updated = 20_000
+  expect(ids()).toEqual(["newer", "older"])
+})
+
 test("clears Done by session start/day and other statuses after 96 hours", () => {
   const hour = 60 * 60 * 1_000
   const now = new Date(2030, 5, 15, 12, 0, 0).getTime()

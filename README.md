@@ -101,11 +101,11 @@ Parents precede their children, with connectors like the `tree` utility:
 ✓ └─ Docs                 25s
 ```
 
-Among siblings, the most recently updated task comes first (falling back to the
-creation time, then session ID for ties). Each subtree stays together: a parent
-always precedes its children, so an older parent can appear above newer
-children. Direct children of the current root have no connector, and the current
-root itself is not a row.
+Among siblings, the most recently created task comes first (session ID breaks
+ties). The order is fixed at creation time: later updates never reshuffle the
+list. Each subtree stays together: a parent always precedes its children, so an
+older parent can appear above newer children. Direct children of the current
+root have no connector, and the current root itself is not a row.
 
 Old work is cleared automatically. `Done` tasks are kept only if last updated
 after OpenCode started **and** today — startup and each new day act as a clear

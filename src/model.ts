@@ -214,7 +214,8 @@ export function buildRows(
   for (const siblings of shownTree.values())
     siblings.sort(
       (a, b) =>
-        timeOf(b) - timeOf(a) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+        b.time.created - a.time.created ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     )
   const ordered: SessionRecord[] = []
   const stack = [...(shownTree.get(rootID) ?? [])].reverse()
