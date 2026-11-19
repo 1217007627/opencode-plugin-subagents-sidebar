@@ -38,10 +38,6 @@ expand **Task**, or run `/subagents` to search tasks even with the sidebar
 hidden. An empty tree shows only the header. See [installation](#installation)
 for archive and source-checkout alternatives.
 
-## Demo
-
-![Subagents Sidebar v0.2.0 in Warp: nested tree, durations and searchable keyboard chooser](https://raw.githubusercontent.com/andy-takker/opencode-plugin-subagents-sidebar/main/docs/assets/demo.gif)
-
 Captured in **Warp** using the actual plugin components and **demonstration data**,
 not a live agent execution. Time-compressed captures show the nested tree and the
 keyboard chooser/search. The recording predates the current compact header.
