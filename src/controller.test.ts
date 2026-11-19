@@ -374,11 +374,15 @@ test("restores paginated nested family when opening a child or revisiting", asyn
   ])
   await f.controller.select("nested")
   expect(f.last()?.rootID).toBe("root")
-  expect(f.last()?.rows).toHaveLength(52)
+  const ids = () => f.last()?.rows.map((r) => r.id) ?? []
+  expect(ids()).toHaveLength(15)
+  expect(ids()).toContain("nested")
+  expect(ids()).toContain("c50")
   await f.controller.select("other")
   expect(f.last()?.rows).toEqual([])
   await f.controller.select("c50")
-  expect(f.last()?.rows).toHaveLength(52)
+  expect(ids()).toHaveLength(15)
+  expect(ids()).toContain("nested")
   f.controller.dispose()
 })
 
@@ -487,7 +491,7 @@ test("tree reads have bounded concurrency", async () => {
   }
   await f.controller.select("root")
   expect(peak).toBeLessThanOrEqual(4)
-  expect(f.last()?.rows).toHaveLength(20)
+  expect(f.last()?.rows).toHaveLength(15)
   f.controller.dispose()
 })
 

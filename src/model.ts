@@ -187,6 +187,22 @@ export function buildRows(
       if (now - stamp > threshold) hidden.add(session.id)
     }
   }
+  // Cap the visible tasks: hide the oldest non-active ones until at most 15 remain.
+  const visible = descendants.filter((session) => !hidden.has(session.id))
+  if (visible.length > 15) {
+    const oldestFirst = [...visible].sort(
+      (a, b) =>
+        a.time.created - b.time.created ||
+        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+    )
+    let hiddenCount = 0
+    for (const session of oldestFirst) {
+      if (visible.length - hiddenCount <= 15) break
+      if (active(session.id)) continue
+      hidden.add(session.id)
+      hiddenCount++
+    }
+  }
   const keep = new Set(
     descendants.filter((session) => !hidden.has(session.id)).map((s) => s.id),
   )

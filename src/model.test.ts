@@ -166,6 +166,47 @@ test("keeps Done for 3 hours and other statuses for 96 hours", () => {
   expect(rows.find((r) => r.id === "old-parent")?.active).toBe(false)
 })
 
+test("caps visible tasks at 15, hiding the oldest non-active ones", () => {
+  const now = Date.now()
+  const records: SessionRecord[] = [record("root")]
+  const statuses = new Map<string, LiveStatus>()
+  for (let i = 1; i <= 20; i++) {
+    const id = `task-${i}`
+    records.push({
+      id,
+      parentID: "root",
+      time: { created: i, updated: now },
+      outcome: "succeeded",
+    })
+    statuses.set(id, "idle")
+  }
+  const rows = buildRows("root", records, statuses, now)
+  expect(rows.length).toBeLessThanOrEqual(15)
+  const ids = rows.map((r) => r.id)
+  expect(ids).not.toContain("task-1")
+  expect(ids).toContain("task-20")
+})
+
+test("cap keeps the oldest Running/Waiting tasks active", () => {
+  const now = Date.now()
+  const records: SessionRecord[] = [record("root")]
+  const statuses = new Map<string, LiveStatus>()
+  for (let i = 1; i <= 20; i++) {
+    const id = `task-${i}`
+    const isActive = i <= 3
+    records.push({
+      id,
+      parentID: "root",
+      time: { created: i, updated: now },
+      ...(isActive ? {} : { outcome: "succeeded" as const }),
+    })
+    statuses.set(id, isActive ? "running" : "idle")
+  }
+  const rows = buildRows("root", records, statuses, now)
+  const ids = rows.map((r) => r.id)
+  for (const id of ["task-1", "task-2", "task-3"]) expect(ids).toContain(id)
+})
+
 test("Active keeps shared ancestors once and removes unused branches after completion/deletion", () => {
   const records = [
     record("root"),

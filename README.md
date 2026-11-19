@@ -104,7 +104,9 @@ are kept only if last updated within the last 3 hours. Every other status
 (`Error`, `Interrupted`, `Running`, `Waiting`, `Idle`, `Unknown`) is dropped once
 its last update is more than 96 hours old, so tasks from a weekend do not
 linger. A hidden task is still shown as an ancestor when a visible descendant
-needs it to keep the tree connected.
+needs it to keep the tree connected. When the current root has more than 15
+visible tasks, the oldest non-active tasks are hidden until the count drops to
+15; Running/Waiting tasks are kept first.
 
 Connectors occupy at most six columns. At depths beyond two nested levels, `…`
 replaces the earlier path (`…  └─`); it does not mean nodes were omitted. The
