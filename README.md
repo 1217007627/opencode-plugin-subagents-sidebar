@@ -34,92 +34,92 @@ use a local copy of this plugin, replace that entry rather than enabling both.
 This is a **TUI-only plugin**: configure it in `cli.json`, not `opencode.json`.
 
 Use `/reload` if the section does not appear after saving. Open a session and
-expand **Subagents**, or run `/subagents` to search tasks even with the sidebar
-hidden. An empty tree shows `No subagents`. See [installation](#installation)
+expand **Task**, or run `/subagents` to search tasks even with the sidebar
+hidden. An empty tree shows only the header. See [installation](#installation)
 for archive and source-checkout alternatives.
 
 ## Demo
 
-![Subagents Sidebar v0.2.0 in Warp: attention counts, nested tree, Active filter, durations and searchable keyboard chooser](https://raw.githubusercontent.com/andy-takker/opencode-plugin-subagents-sidebar/main/docs/assets/demo.gif)
+![Subagents Sidebar v0.2.0 in Warp: nested tree, durations and searchable keyboard chooser](https://raw.githubusercontent.com/andy-takker/opencode-plugin-subagents-sidebar/main/docs/assets/demo.gif)
 
 Captured in **Warp** using the actual plugin components and **demonstration data**,
-not a live agent execution. Time-compressed captures show attention counts, the
-nested tree, Active with ancestor context, and the keyboard chooser/search.
+not a live agent execution. Time-compressed captures show the nested tree and the
+keyboard chooser/search. The recording predates the current compact header.
 The recording is cropped; no private conversations or real task data are included.
 
 ## Features
 
-Collapsed by default; click the arrow or header to expand the list:
+Expanded by default; click the arrow or header to collapse the list. The header
+uses a lowercase label and shows no total count:
 
 ```text
-▶ Subagents · 5 · 2 running
+▶ Task (2 running)
 ```
 
-Expanded example:
+The parenthesized number is the count of **Running** tasks, and it keeps
+updating while collapsed. Expanded, the header drops the count and the complete
+history is shown directly:
 
 ```text
-▼ Subagents · 1
-[All (1)] Active (0)
-Research API       Done 3m37s
+▼ Task
+✓ Research API            3m 37s
+⠋ Review changes            42s
 ```
 
-- Counts keep updating while collapsed. The expanded/collapsed choice survives
-  navigation for this plugin context; restarting OpenCode or reloading the plugin resets it.
+Each row starts with a one-cell status icon instead of status text. The elapsed
+time of the latest execution appears right-aligned and muted:
+
+| State                                        | Icon                                                      | Color |
+| -------------------------------------------- | --------------------------------------------------------- | ----- |
+| `Running` / `Waiting`                        | Braille spinner (`⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏`), 100 ms per frame | green |
+| `Done`                                       | `✓`                                                       | muted |
+| `Error` / `Interrupted` / `Idle` / `Unknown` | `✗`                                                       | red   |
+
+The spinner is the same one OpenCode's built-in subagent list uses. It advances
+only while the list is expanded and a Running/Waiting task exists, and stops on
+collapse, load error or unmount. Idle does not imply success.
+
+Running and Waiting titles are green to show active work; titles of `Done`,
+`Error` and `Interrupted` tasks are muted so finished work recedes. Everything
+that is neither running nor successfully finished uses the same red `✗`, so it
+is easy to spot at a glance.
+
+- The expanded/collapsed choice survives navigation for this plugin context;
+  restarting OpenCode or reloading the plugin resets it.
 - Branches containing Running/Waiting tasks appear first; finished tasks stay visible.
 - Navigating into a child keeps the same tree. Switching roots changes the list.
 - Restores existing tasks, follows lifecycle events, and uses your current theme.
-- Text statuses: `Waiting`, `Running`, `Done`, `Error`, `Interrupted`, `Idle`, `Unknown`.
-  Idle does not imply success.
-
-### Active/All filter
-
-A filter appears beneath the expanded header:
-
-```text
-▼ Subagents · 5
-All (5) [Active (2)]
-Research API         Running
-Review changes       Running
-```
-
-Click **All** to show the complete history (the default), or **Active** to show
-`Running` and `Waiting` tasks, plus their ancestors for context. Brackets mark the
-selected mode. The header always counts all subagents; Active counts only active
-tasks. Additional inactive ancestors are marked `·`, use muted titles and are
-counted separately on a `+ N context (·)` line. They keep their real status and
-remain clickable. Finished tasks disappear from Active unless needed as an
-ancestor, and remain accessible through All. No active tasks shows `No active subagents`;
-a completely empty tree shows `No subagents` in either mode.
-
-Filtering is local and never pauses synchronization, including while collapsed.
-The choice survives session/root navigation and sidebar remounts in the same
-plugin context; restarting OpenCode or reloading the plugin resets it to All.
 
 ### Nested task tree
 
 Parents precede their children, with connectors like the `tree` utility:
 
 ```text
-Research       Done     3m37s
-├─ API         Running    42s
-│  └─ Tests    Waiting  1m05s
-└─ Docs        Done       25s
+✓ Research               3m 37s
+⠋ ├─ API                  42s
+⠋ │  └─ Tests           1m 5s
+✓ └─ Docs                 25s
 ```
 
-Among siblings, branches containing any Running/Waiting task come first, then
-creation time and session ID break ties. Each subtree stays together; an inactive
-parent can therefore precede its active descendants. Direct children of the
-current root have no connector, and the current root itself is not a row.
+Among siblings, the most recently updated task comes first (falling back to the
+creation time, then session ID for ties). Each subtree stays together: a parent
+always precedes its children, so an older parent can appear above newer
+children. Direct children of the current root have no connector, and the current
+root itself is not a row.
 
-Active retains each necessary ancestor once, hides inactive sibling branches and
-redraws connectors for the filtered tree. Its visible row count is the active
-count plus the separate context count. A finished parent with no active descendant
-disappears from Active. Filtering remains local and preserves click targets.
+Old work is cleared automatically. `Done` tasks are kept only if last updated
+after OpenCode started **and** today — startup and each new day act as a clear
+point. Every other status (`Error`, `Interrupted`, `Running`, `Waiting`, `Idle`,
+`Unknown`) is dropped once its last update is more than 96 hours old, so tasks
+from a weekend do not linger. Tasks created today are always kept. A hidden task
+is still shown as an ancestor when a visible descendant needs it to keep the
+tree connected.
 
 Connectors occupy at most six columns. At depths beyond two nested levels, `…`
-replaces the earlier path (`…  └─`); it does not mean nodes were omitted. Status
-and duration columns remain aligned while long task names truncate. Navigating
-into a child retains the same root tree.
+replaces the earlier path (`…  └─`); it does not mean nodes were omitted. The
+status icon is a fixed one-cell column before the connector and durations share
+a right-aligned column; long task names truncate. Navigating into a child retains
+the same root tree.
 
 ### Attention and errors
 
@@ -128,17 +128,10 @@ that subagent. It takes precedence over Running and previous terminal outcomes;
 Running also overrides a previous error. Idle alone never means waiting or stuck.
 Waiting and Running both give their branch priority in the tree ordering.
 
-When attention is needed, the collapsed section adds a compact summary:
-
-```text
-▶ Subagents · 3
-1 running 1 waiting 1 error
-```
-
-Each subagent contributes to at most one of these counts, even with several
-pending requests. Counts describe the whole tree regardless of the filter.
-Summary items wrap as whole labels on narrow sidebars. Errors remain in All;
-Active contains Running and Waiting. Click a row to open the host session and
+The collapsed header shows only running tasks as `(N running)`. Once
+expanded, Waiting spins and Error shows `✗` in the icon column; the complete
+history is always visible. Each subagent contributes to at most one status,
+even with several pending requests. Click a row to open the host session and
 respond there. The plugin never answers forms or grants permissions.
 
 Replies/cancellations refresh the state; Waiting clears when no request remains.
@@ -149,26 +142,22 @@ claiming there is nothing to attend to.
 
 ### Execution duration
 
-Expanded rows show the elapsed time of the **latest execution**, for example
-`Running 42s`, `Waiting 3m12s`, or `Done 1h05m`. Waiting inside an execution counts
+The sidebar shows the elapsed time of the **latest execution** as a muted,
+right-aligned column after the title. Status remains a single leading icon.
+The `/subagents` chooser displays the same duration as `status · duration`, for
+example `Running · 42s` or `Done · 1h 5m`. Waiting inside an execution counts
 toward elapsed time; this is not CPU time or a separate waiting-time counter.
 A completed execution freezes its duration, including when a pending request
-keeps the row in Waiting. A new execution starts a new timer.
+keeps the row in Waiting.
 
 The server's `time.busy` supplies the start and `time.idle` the completed end.
 Session creation/update times are never substituted. Missing, inconsistent or
 future timestamps show `—`; duration alone never means a task is stuck.
-Reopening the list, navigating and reconnecting derive time from server metadata
-rather than the time the sidebar was opened. A server restart that starts a new
-execution also resets its duration.
-
 Formatting uses whole seconds below an hour, whole minutes below a day, then
-whole hours (`2d03h`); durations of 1,000 days or more display `999d+`.
-One local clock updates once per second only while the expanded, ready list
-contains an ongoing execution. It stops on collapse, load error, completion or
-unmount and makes no server requests. Visible rows share status and duration
-column widths: statuses align left, durations align right, and long titles
-truncate.
+whole hours (`2d 3h`), with a space after each unit and no zero padding
+(`11m 4s`); durations of 1,000 days or more display `999d+`. The
+local clock updates once per second only while the sidebar or chooser is open
+and an execution is ongoing; it makes no server requests.
 
 ### Keyboard navigation
 
@@ -179,7 +168,7 @@ session, including when the sidebar is hidden or collapsed.
 - Type to search task titles (case-insensitive substring matching).
 - Use **↑/↓** to select, **Enter** to open, and **Esc** to cancel.
 - The chooser includes the entire current root's descendant tree, regardless
-  of the sidebar's Active/All filter. It shows bounded tree connectors, live
+  of whether the sidebar is expanded. It shows bounded tree connectors, live
   statuses, and execution durations; searching may hide a matching task's parent.
 - Loading, empty trees, no matches, and request failures have distinct messages.
   Press Enter to retry a load failure. Sessions are rechecked before navigation;
@@ -230,7 +219,8 @@ to its existing `plugins` array. Replace the example path with your own:
 
 Preserve your other plugins and settings. OpenCode watches this file; use
 `/reload` if needed. Open a session and widen the terminal enough for OpenCode's
-sidebar to appear. Expand `Subagents` to see the list, or `No subagents` when empty.
+sidebar to appear. Expand `Task` to see the list; an empty tree shows only
+the header.
 
 ### npm installation
 

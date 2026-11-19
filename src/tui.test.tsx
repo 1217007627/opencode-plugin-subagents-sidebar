@@ -5,17 +5,28 @@ import { displayClock } from "../test/clock"
 import { contextFixture, form, permission, session } from "../test/context"
 import { Sidebar } from "./tui"
 
-async function clickText(
-  screen: Awaited<ReturnType<typeof testRender>>,
-  text: string,
-) {
+type Screen = Awaited<ReturnType<typeof testRender>>
+const SPINNER = /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/
+const ICON = /[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏✓✗]/
+
+function iconLines(frame: string) {
+  return frame.split("\n").filter((line) => ICON.test(line))
+}
+
+async function clickText(screen: Screen, text: string) {
   const frame = await screen.waitForFrame((frame) => frame.includes(text))
   const lines = frame.split("\n")
   const y = lines.findIndex((line) => line.includes(text))
   await screen.mockMouse.click((lines[y]?.indexOf(text) ?? 0) + 1, y)
 }
 
-test("tree connectors preserve ancestry in Active, with distinct context counts and correct clicks", async () => {
+async function expandedReady(screen: Screen) {
+  return screen.waitForFrame(
+    (frame) => frame.includes("▼ Task") && !frame.includes("Loading"),
+  )
+}
+
+test("tree connectors, clicks and collapsed running count without filter or empty text", async () => {
   const parent = {
     ...session("parent", "root"),
     title: "Research",
@@ -43,30 +54,18 @@ test("tree connectors preserve ancestry in Active, with distinct context counts 
     () => <Sidebar context={f.context} sessionID={id()} />,
     { width: 28, height: 14 },
   )
-  await clickText(screen, "▶ Subagents")
-  const all = await screen.waitForFrame((frame) => frame.includes("Docs"))
+  const all = await expandedReady(screen)
   expect(all).toContain("├─ API")
   expect(all).toContain("│  └─ Tests")
   expect(all).toContain("└─ Docs")
   expect(all.indexOf("Research")).toBeLessThan(all.indexOf("API"))
-  const reads = [f.requests.length, f.attentionRequests.length]
-  await clickText(screen, "Active (2)")
-  const active = await screen.waitForFrame((frame) =>
-    frame.includes("+ 1 context (·)"),
-  )
-  expect(active).toContain("· Research")
-  expect(active).toContain("└─ API")
-  expect(active).toContain("   └─ Tests")
-  expect(active).not.toContain("Docs")
-  expect(active).not.toContain("other")
-  const parentSpan = screen
-    .captureSpans()
-    .lines.flatMap((line) => line.spans)
-    .find((span) => span.text.includes("Research"))
-  expect(parentSpan?.fg.equals(f.context.theme.text.muted)).toBe(true)
-  expect([f.requests.length, f.attentionRequests.length]).toEqual(reads)
-  await clickText(screen, "· Research")
-  await clickText(screen, "└─ Tests")
+  expect(all).not.toContain("All (")
+  expect(all).not.toContain("Active (")
+  expect(all).not.toContain("No subagents")
+  expect(all).not.toContain("remaining")
+  expect(iconLines(all).filter((line) => SPINNER.test(line))).toHaveLength(2)
+  await clickText(screen, "Research")
+  await clickText(screen, "│  └─ Tests")
   expect(f.routes).toEqual([
     { type: "session", sessionID: "parent" },
     { type: "session", sessionID: "tests" },
@@ -78,35 +77,42 @@ test("tree connectors preserve ancestry in Active, with distinct context counts 
     return get(input)
   }
   setId("tests")
-  await screen.waitForFrame((frame) => frame.includes("Loading…"))
+  await screen.waitForFrame((frame) => frame.includes("· Loading…"))
   gate.resolve()
-  const navigated = await screen.waitForFrame((frame) =>
-    frame.includes("+ 1 context (·)"),
+  const navigated = await screen.waitForFrame(
+    (frame) => frame.includes("▼ Task") && !frame.includes("Research"),
   )
-  expect(navigated).toContain("Subagents · 5")
-  expect(navigated).toContain("· Research")
-  expect(navigated).toContain("   └─ Tests")
+  expect(navigated).toContain("▼ Task")
+  expect(navigated).not.toContain("Research")
+  setId("root")
+  await screen.waitForFrame((frame) => frame.includes("Research"))
   f.sessionAPI.active = async () => ({})
   f.emit({ id: "finished", type: "server.connected", data: {} })
-  const partial = await screen.waitForFrame((frame) =>
-    frame.includes("+ 2 context (·)"),
+  const waiting = await screen.waitForFrame((frame) =>
+    iconLines(frame).some(
+      (line) => SPINNER.test(line) && line.includes("Tests"),
+    ),
   )
-  expect(partial).toContain("[Active (1)]")
-  expect(partial).toContain("└─ · API")
+  expect(waiting).toContain("Tests")
   f.forms.length = 0
   f.emit({ id: "resolved", type: "server.connected", data: {} })
-  const empty = await screen.waitForFrame((frame) =>
-    frame.includes("No active subagents"),
-  )
-  expect(empty).not.toContain("context")
-  expect(empty).not.toContain("Research")
-  await clickText(screen, "All (5)")
   expect(
-    await screen.waitForFrame((frame) => frame.includes("Docs")),
-  ).toContain("├─ API")
+    await screen.waitForFrame(
+      (frame) =>
+        !iconLines(frame).some((line) => SPINNER.test(line)) &&
+        frame.includes("Docs"),
+    ),
+  ).toContain("Docs")
+  await clickText(screen, "▼ Task")
+  const collapsed = await screen.waitForFrame((frame) =>
+    frame.includes("▶ Task (0 running)"),
+  )
+  expect(collapsed).not.toContain("Research")
+  expect(collapsed).not.toContain("waiting")
+  expect(collapsed).not.toContain("error")
 })
 
-test("deep Unicode trees bound the connector width and keep context and active rows clickable", async () => {
+test("deep Unicode trees bind the connector width and keep rows clickable", async () => {
   using clock = displayClock(10_000_000)
   const records = [session("root")]
   for (let i = 0; i < 6; i++)
@@ -127,37 +133,25 @@ test("deep Unicode trees bound the connector width and keep context and active r
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 14 },
   )
-  await clickText(screen, "▶ Subagents")
-  await clickText(screen, "Active (1)")
-  const frame = await screen.waitForFrame((frame) =>
-    frame.includes("+ 5 context (·)"),
-  )
-  expect(frame).toContain("…  └─ · ")
-  expect(frame).toMatch(/Running\s+10m00s/)
-  expect(frame).toMatch(/Interrupted\s+1h00m/)
-  const lines = frame
-    .split("\n")
-    .filter((line) => /Idle|Interrupted|Running/.test(line))
+  const frame = await screen.waitForFrame((frame) => SPINNER.test(frame))
+  expect(frame).toContain("…  └─ ")
+  expect(frame).toContain("10m 0s")
+  expect(frame).toContain("1h 0m")
+  const lines = iconLines(frame)
   expect(lines).toHaveLength(6)
-  expect(
-    new Set(
-      lines.map((line) =>
-        Bun.stringWidth(line.slice(0, line.search(/Idle|Interrupted|Running/))),
-      ),
-    ).size,
-  ).toBe(1)
-  expect(new Set(lines.map((line) => Bun.stringWidth(line.trimEnd())))).toEqual(
-    new Set([28]),
+  expect(new Set(lines.map((line) => line.search(ICON))).size).toBe(1)
+  expect(lines.every((line) => Bun.stringWidth(line.trimEnd()) <= 28)).toBe(
+    true,
   )
-  expect(clock.active).toBe(1)
+  expect(clock.active).toBe(2)
   expect(screen.renderer.root.getChildren()[0]?.width).toBeLessThanOrEqual(28)
-  const y = frame.split("\n").findIndex((line) => line.includes("Running"))
+  const y = frame.split("\n").findIndex((line) => SPINNER.test(line))
   await screen.mockMouse.click(1, y)
   expect(f.routes).toEqual([{ type: "session", sessionID: "n5" }])
 })
 
 test.each([28, 40])(
-  "status columns align across durations and clock ticks at width %d",
+  "icon column aligns and long titles truncate at width %d",
   async (width) => {
     using clock = displayClock(1_000_000)
     const records = [
@@ -189,54 +183,35 @@ test.each([28, 40])(
       () => <Sidebar context={f.context} sessionID="root" />,
       { width, height: 12 },
     )
-    await clickText(screen, "▶ Subagents")
-    const assertColumns = (frame: string) => {
-      const lines = frame
-        .split("\n")
-        .filter((line) =>
-          /(?:Done|Interrupted|Running|Waiting)\s+\S+\s*$/.test(line),
-        )
-      expect(lines).toHaveLength(5)
-      expect(
-        new Set(
-          lines.map((line) => line.search(/Done|Interrupted|Running|Waiting/)),
-        ).size,
-      ).toBe(1)
-      expect(new Set(lines.map((line) => line.trimEnd().length))).toEqual(
-        new Set([width]),
-      )
-      for (const duration of ["25s", "3m37s", "1m00s", "—"])
-        expect(lines.some((line) => line.trimEnd().endsWith(duration))).toBe(
-          true,
-        )
-      return lines
-    }
-    const frame = await screen.waitForFrame(
-      (frame) => frame.includes("59s") && frame.includes("Interrupted"),
+    const frame = await screen.waitForFrame((frame) => SPINNER.test(frame))
+    const lines = iconLines(frame)
+    expect(lines).toHaveLength(5)
+    expect(new Set(lines.map((line) => line.search(ICON))).size).toBe(1)
+    for (const line of lines)
+      expect(Bun.stringWidth(line.trimEnd())).toBeLessThanOrEqual(width)
+    expect(lines.filter((line) => SPINNER.test(line))).toHaveLength(2)
+    expect(lines.filter((line) => line.includes("✓"))).toHaveLength(2)
+    expect(lines.filter((line) => line.includes("✗"))).toHaveLength(1)
+    for (const duration of ["25s", "3m 37s", "1m 0s", "—"])
+      expect(lines.some((line) => line.trimEnd().endsWith(duration))).toBe(true)
+    expect(
+      new Set(lines.map((line) => Bun.stringWidth(line.trimEnd()))).size,
+    ).toBe(1)
+    clock.advance(100)
+    const spinnerFrame = await screen.waitForFrame((frame) =>
+      frame.includes("⠙"),
     )
-    const initialColumn =
-      assertColumns(frame)[0]?.search(/Done|Interrupted|Running|Waiting/) ?? 0
-    const reads = [f.requests.length, f.attentionRequests.length]
+    expect(iconLines(spinnerFrame)).toHaveLength(5)
     clock.advance(1_000)
-    assertColumns(
-      await screen.waitForFrame((frame) => /Running\s+1m00s/.test(frame)),
-    )
-    clock.advance(540_000)
-    const widened = assertColumns(
-      await screen.waitForFrame((frame) => /Running\s+10m00s/.test(frame)),
-    )
-    expect(widened[0]?.search(/Done|Interrupted|Running|Waiting/)).toBe(
-      initialColumn - 1,
-    )
-    expect([f.requests.length, f.attentionRequests.length]).toEqual(reads)
-    const lines = screen.captureCharFrame().split("\n")
-    const y = lines.findIndex((line) => line.includes("Interrupted"))
-    await screen.mockMouse.click(lines[y]?.indexOf("Interrupted") ?? 0, y)
+    const next = await screen.waitForFrame((frame) => frame.includes("1m 0s"))
+    expect(iconLines(next)).toHaveLength(5)
+    const y = next.split("\n").findIndex((line) => line.includes("stopped"))
+    await screen.mockMouse.click(2, y)
     expect(f.routes).toEqual([{ type: "session", sessionID: "stopped" }])
   },
 )
 
-test("execution clock ticks locally only while visible, freezes on completion and resets on rerun", async () => {
+test("spinner ticks only while visible, stops on terminal states and restarts on rerun", async () => {
   using clock = displayClock(10_000)
   const child = {
     ...session("child", "root"),
@@ -251,42 +226,28 @@ test("execution clock ticks locally only while visible, freezes on completion an
     { width: 28, height: 10 },
   )
   try {
-    await screen.waitForFrame((frame) => frame.includes("1 running"))
-    expect(clock.active).toBe(0)
-    await clickText(screen, "▶ Subagents")
-    await screen.waitForFrame((frame) => frame.includes("Running 0s"))
-    expect(clock.active).toBe(1)
-    const reads = [f.requests.length, f.attentionRequests.length]
-    clock.advance(1_000)
-    const frame = await screen.waitForFrame((frame) =>
-      frame.includes("Running 1s"),
-    )
-    expect([f.requests.length, f.attentionRequests.length]).toEqual(reads)
+    await screen.waitForFrame((frame) => SPINNER.test(frame))
+    expect(clock.active).toBe(2)
+    clock.advance(100)
+    const frame = await screen.waitForFrame((frame) => frame.includes("⠙"))
     expect(screen.renderer.root.getChildren()[0]?.width).toBeLessThanOrEqual(28)
-    await screen.mockMouse.click(
-      2,
-      frame.split("\n").findIndex((line) => line.includes("Running 1s")),
-    )
+    const y = frame.split("\n").findIndex((line) => SPINNER.test(line))
+    await screen.mockMouse.click(2, y)
     expect(f.routes).toEqual([{ type: "session", sessionID: "child" }])
-    await clickText(screen, "▼ Subagents")
-    await screen.waitForFrame((frame) => frame.includes("▶ Subagents"))
+    await clickText(screen, "▼ Task")
+    await screen.waitForFrame((frame) => frame.includes("▶ Task"))
     expect(clock.active).toBe(0)
-    clock.advance(130_000)
-    await clickText(screen, "▶ Subagents")
-    await screen.waitForFrame((frame) => frame.includes("Running 2m11s"))
-    clock.advance(4_000)
     child.time.idle = 145_000
     f.sessionAPI.active = async () => ({})
     f.emit({ id: "end", type: "server.connected", data: {} })
-    await screen.waitForFrame((frame) => frame.includes("Error 2m15s"))
+    await clickText(screen, "▶ Task")
+    await screen.waitForFrame((frame) => frame.includes("✗"))
     expect(clock.active).toBe(0)
-    clock.advance(10_000)
-    await screen.flush()
-    expect(screen.captureCharFrame()).toContain("Error 2m15s")
     child.time.busy = 155_000
     f.sessionAPI.active = async () => ({ child: { type: "running" } })
     f.emit({ id: "rerun", type: "server.connected", data: {} })
-    await screen.waitForFrame((frame) => frame.includes("Running 0s"))
+    await screen.waitForFrame((frame) => SPINNER.test(frame))
+    expect(clock.active).toBe(2)
     f.forms.push(form("child"))
     f.emit({
       id: "form",
@@ -294,9 +255,8 @@ test("execution clock ticks locally only while visible, freezes on completion an
       type: "form.created",
       data: { form: form("child") },
     })
-    await screen.waitForFrame((frame) => frame.includes("Waiting 0s"))
-    clock.advance(2_000)
-    await screen.waitForFrame((frame) => frame.includes("Waiting 2s"))
+    await screen.flush()
+    expect(SPINNER.test(screen.captureCharFrame())).toBe(true)
     const list = f.formAPI.list
     f.formAPI.list = async () => {
       throw new Error("offline")
@@ -308,17 +268,16 @@ test("execution clock ticks locally only while visible, freezes on completion an
     expect(clock.active).toBe(0)
     f.formAPI.list = list
     await clickText(screen, "Retry")
-    await screen.waitForFrame((frame) => frame.includes("Waiting 2s"))
-    expect(clock.active).toBe(1)
+    await screen.waitForFrame((frame) => SPINNER.test(frame))
+    expect(clock.active).toBe(2)
   } finally {
     await screen.dispose()
   }
   expect(clock.active).toBe(0)
-  clock.advance(1_000)
   expect(f.listeners.size).toBe(0)
 })
 
-test("duration restores from server timestamps after navigation/reconnect and missing timing stays unknown", async () => {
+test("status icons restore after navigation/reconnect and idle shows a cross", async () => {
   using clock = displayClock(200_000)
   const child = {
     ...session("child", "root"),
@@ -336,28 +295,71 @@ test("duration restores from server timestamps after navigation/reconnect and mi
     () => <Sidebar context={f.context} sessionID={selected()} />,
     { width: 28, height: 10 },
   )
-  await clickText(screen, "▶ Subagents")
-  await screen.waitForFrame((frame) => frame.includes("Done 1m30s"))
-  expect(clock.active).toBe(0)
+  expect(
+    await screen.waitForFrame((frame) =>
+      iconLines(frame).some(
+        (line) => line.includes("✓") && line.includes("child"),
+      ),
+    ),
+  ).toContain("1m 30s")
   f.forms.push(form("child"))
   f.emit({ id: "pending", type: "server.connected", data: {} })
-  await screen.waitForFrame((frame) => frame.includes("Waiting 1m30s"))
-  expect(clock.active).toBe(0)
+  await screen.waitForFrame((frame) =>
+    iconLines(frame).some(
+      (line) => SPINNER.test(line) && line.includes("child"),
+    ),
+  )
   f.forms.length = 0
   select("other")
-  await screen.waitForFrame((frame) => frame.includes("Idle —"))
-  expect(clock.active).toBe(0)
-  clock.advance(10_000)
+  expect(
+    await screen.waitForFrame((frame) =>
+      iconLines(frame).some((line) => line.includes("✗")),
+    ),
+  ).toContain("—")
   select("child")
-  await screen.waitForFrame((frame) => frame.includes("Done 1m30s"))
+  await screen.waitForFrame((frame) =>
+    iconLines(frame).some(
+      (line) => line.includes("✓") && line.includes("child"),
+    ),
+  )
   child.time.busy = 205_000
+  clock.advance(10_000)
   f.sessionAPI.active = async () => ({ child: { type: "running" } })
   f.emit({ id: "reconnect", type: "server.connected", data: {} })
-  await screen.waitForFrame((frame) => frame.includes("Running 5s"))
-  expect(clock.active).toBe(1)
+  await screen.waitForFrame((frame) =>
+    iconLines(frame).some(
+      (line) => SPINNER.test(line) && line.includes("child"),
+    ),
+  )
+  expect(screen.captureCharFrame()).toContain("5s")
 })
 
-test("All defaults to complete history; Active filters locally and keeps narrow Unicode navigation", async () => {
+test("terminal titles are muted while running titles stay bright", async () => {
+  const f = contextFixture([
+    session("root"),
+    { ...session("running-child", "root"), outcome: "failed" },
+    { ...session("done-child", "root"), outcome: "succeeded" },
+    { ...session("error-child", "root"), outcome: "failed" },
+    { ...session("interrupted-child", "root"), outcome: "interrupted" },
+  ])
+  f.sessionAPI.active = async () => ({ "running-child": { type: "running" } })
+  await using screen = await testRender(
+    () => <Sidebar context={f.context} sessionID="root" />,
+    { width: 40, height: 10 },
+  )
+  await expandedReady(screen)
+  const spans = screen.captureSpans().lines.flatMap((line) => line.spans)
+  const titleFg = (name: string) =>
+    spans.find((span) => span.text.includes(name))?.fg
+  expect(titleFg("running-child")?.equals(f.context.theme.text.base)).toBe(true)
+  expect(titleFg("done-child")?.equals(f.context.theme.text.muted)).toBe(true)
+  expect(titleFg("error-child")?.equals(f.context.theme.text.muted)).toBe(true)
+  expect(titleFg("interrupted-child")?.equals(f.context.theme.text.muted)).toBe(
+    true,
+  )
+})
+
+test("complete history stays visible with narrow Unicode navigation", async () => {
   const running = {
     ...session("running", "root"),
     title: "Исследование 界界 👩‍💻".repeat(8),
@@ -367,51 +369,27 @@ test("All defaults to complete history; Active filters locally and keeps narrow 
     running,
     { ...session("finished", "root"), title: "History", outcome: "succeeded" },
   ])
-  let reads = 0
-  const get = f.sessionAPI.get
-  const list = f.sessionAPI.list
-  f.sessionAPI.get = (input) => {
-    reads++
-    return get(input)
-  }
-  f.sessionAPI.list = (input) => {
-    reads++
-    return list(input)
-  }
   f.sessionAPI.active = async () => {
-    reads++
     return { running: { type: "running" } }
   }
   await using screen = await testRender(
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 10 },
   )
-  await clickText(screen, "▶ Subagents")
-  const all = await screen.waitForFrame((frame) => frame.includes("[All (2)]"))
+  const all = await expandedReady(screen)
   expect(all).toContain("History")
-  expect(all).toContain("Active (1)")
-  const loadedReads = reads
-  await clickText(screen, "Active (1)")
-  const active = await screen.waitForFrame((frame) =>
-    frame.includes("[Active (1)]"),
-  )
-  expect(active).toContain("Subagents · 2")
-  expect(active).toContain("Running")
-  expect(active).not.toContain("History")
+  expect(SPINNER.test(all)).toBe(true)
+  expect(all).not.toContain("All (")
+  expect(all).not.toContain("Active (")
   expect(screen.renderer.root.getChildren()[0]?.width).toBeLessThanOrEqual(28)
   await screen.mockMouse.click(
     2,
-    active.split("\n").findIndex((line) => line.includes("Running")),
+    all.split("\n").findIndex((line) => SPINNER.test(line)),
   )
   expect(f.routes).toEqual([{ type: "session", sessionID: "running" }])
-  await clickText(screen, "All (2)")
-  expect(
-    await screen.waitForFrame((frame) => frame.includes("[All (2)]")),
-  ).toContain("History")
-  expect(reads).toBe(loadedReads)
 })
 
-test("narrow collapsed attention counts sessions once; Active includes waiting and clicks the correct child", async () => {
+test("collapsed header shows only running count; expanded shows every status icon", async () => {
   const f = contextFixture([
     session("root"),
     {
@@ -432,29 +410,28 @@ test("narrow collapsed attention counts sessions once; Active includes waiting a
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 12 },
   )
+  await clickText(screen, "▼ Task")
   const collapsed = await screen.waitForFrame((frame) =>
-    frame.includes("1 waiting"),
+    frame.includes("▶ Task (1 running)"),
   )
-  expect(collapsed).toContain("▶ Subagents · 3")
-  expect(collapsed).toContain("1 running")
-  expect(collapsed).toContain("1 error")
-  expect(collapsed).not.toContain("2 running")
+  expect(collapsed).not.toContain("waiting")
+  expect(collapsed).not.toContain("error")
   expect(collapsed).not.toContain("Failure")
-  await clickText(screen, "▶ Subagents")
-  await clickText(screen, "Active (2)")
-  const active = await screen.waitForFrame((frame) =>
-    frame.includes("[Active (2)]"),
+  await clickText(screen, "▶ Task")
+  const expanded = await screen.waitForFrame(
+    (frame) =>
+      iconLines(frame).filter((line) => SPINNER.test(line)).length === 2,
   )
-  expect(active).toContain("Waiting")
-  expect(active).toContain("Running")
-  expect(active).not.toContain("Failure")
+  expect(iconLines(expanded).filter((line) => line.includes("✗"))).toHaveLength(
+    1,
+  )
   expect(screen.renderer.root.getChildren()[0]?.width).toBeLessThanOrEqual(28)
   await screen.mockMouse.click(
     2,
-    active.split("\n").findIndex((line) => line.includes("Waiting")),
+    expanded.split("\n").findIndex((line) => line.includes("Ожидание")),
   )
   expect(f.routes).toEqual([{ type: "session", sessionID: "waiting" }])
-  await clickText(screen, "▼ Subagents")
+  await clickText(screen, "▼ Task")
   f.permissions.length = 0
   f.forms.length = 0
   f.emit({
@@ -464,72 +441,41 @@ test("narrow collapsed attention counts sessions once; Active includes waiting a
     data: { sessionID: "waiting", id: "form", answer: {} },
   })
   const resolved = await screen.waitForFrame((frame) =>
-    frame.includes("2 running"),
+    frame.includes("▶ Task (2 running)"),
   )
   expect(resolved).not.toContain("waiting")
-  expect(resolved).toContain("1 error")
-  f.sessionAPI.active = async () => ({
-    waiting: { type: "running" },
-    running: { type: "running" },
-    failed: { type: "running" },
-  })
-  f.emit({
-    id: "rerun",
-    created: 2,
-    type: "session.execution.started",
-    durable: { aggregateID: "failed", seq: 1, version: 1 },
-    data: { sessionID: "failed" },
-  })
-  const rerun = await screen.waitForFrame((frame) =>
-    frame.includes("3 running"),
-  )
-  expect(rerun).not.toContain("error")
+  expect(resolved).not.toContain("error")
 })
 
-test("multi-digit attention counts wrap as whole labels at 28 columns", async () => {
+test("multi-digit running count fits the collapsed header at 28 columns", async () => {
   const running = Array.from({ length: 10 }, (_, i) =>
     session(`running-${i}`, "root"),
   )
-  const waiting = Array.from({ length: 11 }, (_, i) =>
-    session(`waiting-${i}`, "root"),
-  )
-  const failed = Array.from({ length: 12 }, (_, i) => ({
-    ...session(`failed-${i}`, "root"),
-    outcome: "failed" as const,
-  }))
-  const f = contextFixture([session("root"), ...running, ...waiting, ...failed])
+  const f = contextFixture([session("root"), ...running])
   f.sessionAPI.active = async () =>
     Object.fromEntries(
       running.map(({ id }) => [id, { type: "running" as const }]),
     )
-  f.forms.push(...waiting.map(({ id }) => form(id)))
   await using screen = await testRender(
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 8 },
   )
+  await clickText(screen, "▼ Task")
   const frame = await screen.waitForFrame((frame) =>
-    frame.includes("▶ Subagents · 33"),
+    frame.includes("▶ Task (10 running)"),
   )
-  const lines = frame.split("\n")
-  const labels = ["10 running", "11 waiting", "12 error"]
-  const positions = labels.map((label) =>
-    lines.findIndex((line) => line.includes(label)),
-  )
-  expect(positions.every((line) => line >= 0)).toBe(true)
-  expect(new Set(positions).size).toBeGreaterThan(1)
+  expect(frame).toContain("▶ Task (10 running)")
   expect(screen.renderer.root.getChildren()[0]?.width).toBeLessThanOrEqual(28)
 })
 
-test("attention read failure replaces stale counts and Retry retains Active", async () => {
+test("attention read failure replaces stale rows and Retry recovers", async () => {
   const f = contextFixture()
   f.forms.push(form("child"))
   await using screen = await testRender(
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 12 },
   )
-  await clickText(screen, "▶ Subagents")
-  await clickText(screen, "Active (1)")
-  await screen.waitForFrame((frame) => frame.includes("Waiting"))
+  await screen.waitForFrame((frame) => SPINNER.test(frame))
   const list = f.formAPI.list
   f.formAPI.list = async () => {
     throw new Error("private response")
@@ -537,28 +483,21 @@ test("attention read failure replaces stale counts and Retry retains Active", as
   f.emit({ id: "reconnect", type: "server.connected", data: {} })
   const failed = await screen.waitForFrame((frame) => frame.includes("Retry"))
   expect(failed).toContain("Unable to load subagents")
-  expect(failed).not.toContain("Waiting")
+  expect(failed).not.toContain("⠋")
   expect(failed).not.toContain("No active")
   expect(failed).not.toContain("private")
   f.formAPI.list = list
   await clickText(screen, "Retry")
   expect(
-    await screen.waitForFrame((frame) => frame.includes("Waiting")),
-  ).toContain("[Active (1)]")
-  f.forms.length = 0
-  f.records[1] = { ...session("child", "root"), outcome: "succeeded" }
-  f.emit({
-    id: "cancel",
-    created: 3,
-    type: "form.cancelled",
-    data: { sessionID: "child", id: "form" },
-  })
-  expect(
-    await screen.waitForFrame((frame) => frame.includes("No active subagents")),
-  ).toContain("[Active (0)]")
+    await screen.waitForFrame((frame) =>
+      iconLines(frame).some(
+        (line) => SPINNER.test(line) && line.includes("child"),
+      ),
+    ),
+  ).toContain("Task")
 })
 
-test("Active stays synchronized while collapsed and restores completed tasks through All", async () => {
+test("collapsed running count stays synchronized and completed rows remain visible", async () => {
   const child = { ...session("child", "root"), title: "Work" }
   const f = contextFixture([session("root"), child])
   f.sessionAPI.active = async () => ({ child: { type: "running" } })
@@ -566,10 +505,7 @@ test("Active stays synchronized while collapsed and restores completed tasks thr
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 10 },
   )
-  await clickText(screen, "▶ Subagents")
-  await clickText(screen, "Active (1)")
-  await screen.waitForFrame((frame) => frame.includes("[Active (1)]"))
-  await clickText(screen, "▼ Subagents")
+  await clickText(screen, "▼ Task")
   f.records[1] = { ...child, outcome: "succeeded" }
   f.sessionAPI.active = async () => ({})
   f.emit({
@@ -579,34 +515,17 @@ test("Active stays synchronized while collapsed and restores completed tasks thr
     durable: { aggregateID: "child", seq: 1, version: 1 },
     data: { sessionID: "child" },
   })
-  const collapsed = await screen.waitForFrame(
-    (frame) => frame.includes("▶ Subagents · 1") && !frame.includes("running"),
+  const collapsed = await screen.waitForFrame((frame) =>
+    frame.includes("▶ Task (0 running)"),
   )
   expect(collapsed).not.toContain("Work")
-  await clickText(screen, "▶ Subagents")
-  const empty = await screen.waitForFrame((frame) =>
-    frame.includes("No active subagents"),
-  )
-  expect(empty).toContain("[Active (0)]")
-  expect(empty).toContain("All (1)")
-  await clickText(screen, "All (1)")
+  await clickText(screen, "▶ Task")
   const restored = await screen.waitForFrame((frame) => frame.includes("Work"))
-  expect(restored).toContain("Done")
-  await clickText(screen, "Active (0)")
-  f.sessionAPI.active = async () => ({ child: { type: "running" } })
-  f.emit({
-    id: "rerun",
-    created: 2,
-    type: "session.execution.started",
-    durable: { aggregateID: "child", seq: 2, version: 1 },
-    data: { sessionID: "child" },
-  })
-  expect(
-    await screen.waitForFrame((frame) => frame.includes("Running")),
-  ).toContain("[Active (1)]")
+  expect(restored).toContain("✓")
+  expect(restored).not.toContain("No subagents")
 })
 
-test("Active preference survives root changes and remounts, but is isolated by context", async () => {
+test("collapsed choice survives root changes and remounts, isolated by context", async () => {
   const f = contextFixture([
     session("root"),
     session("child", "root"),
@@ -618,15 +537,15 @@ test("Active preference survives root changes and remounts, but is isolated by c
     { width: 28, height: 10 },
   )
   try {
-    await clickText(screen, "▶ Subagents")
-    await clickText(screen, "Active (0)")
-    await screen.waitForFrame((frame) => frame.includes("No active subagents"))
-    setId("empty")
-    const empty = await screen.waitForFrame((frame) =>
-      frame.includes("No subagents"),
+    expect(await expandedReady(screen)).toContain("child")
+    await clickText(screen, "▼ Task")
+    await screen.waitForFrame(
+      (frame) => frame.includes("▶ Task") && !frame.includes("child"),
     )
-    expect(empty).toContain("[Active (0)]")
-    expect(empty).toContain("All (0)")
+    setId("empty")
+    const empty = await screen.waitForFrame((frame) => frame.includes("▶ Task"))
+    expect(empty).not.toContain("child")
+    expect(empty).not.toContain("No subagents")
   } finally {
     await screen.dispose()
   }
@@ -635,19 +554,16 @@ test("Active preference survives root changes and remounts, but is isolated by c
     { width: 28, height: 10 },
   )
   expect(
-    await remount.waitForFrame((frame) =>
-      frame.includes("No active subagents"),
-    ),
-  ).toContain("[Active (0)]")
+    await remount.waitForFrame((frame) => frame.includes("▶ Task")),
+  ).not.toContain("child")
   const fresh = contextFixture()
   await using reset = await testRender(
     () => <Sidebar context={fresh.context} sessionID="root" />,
     { width: 28, height: 10 },
   )
-  await clickText(reset, "▶ Subagents")
   expect(
-    await reset.waitForFrame((frame) => frame.includes("[All (1)]")),
-  ).toContain("child")
+    await reset.waitForFrame((frame) => frame.includes("child")),
+  ).toContain("▼ Task")
 })
 
 test("renders restored rows, keeps Unicode titles inside 28 columns, navigates on click", async () => {
@@ -661,13 +577,11 @@ test("renders restored rows, keeps Unicode titles inside 28 columns, navigates o
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 10 },
   )
-  await screen.waitForFrame((frame) => frame.includes("▶ Subagents"))
-  await screen.mockMouse.click(2, 1)
-  const frame = await screen.waitForFrame((frame) => frame.includes("Done"))
-  expect(frame).toContain("Subagents")
-  expect(frame).toContain("Done")
+  const frame = await screen.waitForFrame((frame) => frame.includes("✓"))
+  expect(frame).toContain("Task")
+  expect(frame).toContain("✓")
   expect(screen.renderer.root.getChildren()[0]?.width).toBeLessThanOrEqual(28)
-  const rowY = frame.split("\n").findIndex((line) => line.includes("Done"))
+  const rowY = frame.split("\n").findIndex((line) => line.includes("✓"))
   await screen.mockMouse.click(2, rowY)
   expect(f.routes).toEqual([{ type: "session", sessionID: "child" }])
 })
@@ -688,17 +602,16 @@ test("loading, empty, prop change, and cleanup use the real Solid lifecycle", as
     { width: 28, height: 10 },
   )
   try {
-    await screen.waitForFrame((frame) => frame.includes("▶ Subagents"))
-    await screen.mockMouse.click(2, 1)
     await screen.waitForFrame((frame) => frame.includes("Loading"))
     pending.resolve(session("root"))
-    expect(
-      await screen.waitForFrame((frame) => frame.includes("No subagents")),
-    ).toContain("No subagents")
+    const empty = await expandedReady(screen)
+    expect(empty).toContain("▼ Task")
+    expect(empty).not.toContain("child")
+    expect(empty).not.toContain("No subagents")
     setId("other")
     expect(
       await screen.waitForFrame((frame) => frame.includes("child")),
-    ).toContain("Idle")
+    ).toContain("✗")
   } finally {
     await screen.dispose()
   }
@@ -715,8 +628,6 @@ test("failed load offers working retry", async () => {
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 10 },
   )
-  await screen.waitForFrame((frame) => frame.includes("▶ Subagents"))
-  await screen.mockMouse.click(2, 1)
   const frame = await screen.waitForFrame((frame) => frame.includes("Retry"))
   expect(frame).toContain("Unable to load subagents")
   expect(frame).not.toContain("sensitive")
@@ -727,35 +638,36 @@ test("failed load offers working retry", async () => {
   )
   expect(
     await screen.waitForFrame((frame) => frame.includes("child")),
-  ).toContain("Idle")
+  ).toContain("✗")
 })
 
-test("starts collapsed, updates counts while hidden and preserves choice on remount", async () => {
+test("starts expanded, updates running count while hidden and preserves choice on remount", async () => {
   const f = contextFixture()
   const screen = await testRender(
     () => <Sidebar context={f.context} sessionID="root" />,
     { width: 28, height: 10 },
   )
   try {
+    expect(await expandedReady(screen)).toContain("child")
+    await clickText(screen, "▼ Task")
     const collapsed = await screen.waitForFrame((frame) =>
-      frame.includes("Subagents"),
+      frame.includes("▶ Task"),
     )
-    expect(collapsed).toContain("▶ Subagents")
+    expect(collapsed).toContain("▶ Task (0 running)")
     expect(collapsed).not.toContain("child")
     f.sessionAPI.active = async () => ({ child: { type: "running" } })
     f.emit({ id: "connected", type: "server.connected", data: {} })
     const live = await screen.waitForFrame((frame) =>
-      frame.includes("1 running"),
+      frame.includes("▶ Task (1 running)"),
     )
-    expect(live).toContain("▶ Subagents · 1 · 1 running")
     expect(live).not.toContain("child")
     await screen.mockMouse.click(2, 1)
     expect(
       await screen.waitForFrame((frame) => frame.includes("child")),
-    ).toContain("▼ Subagents · 1")
+    ).toContain("▼ Task")
     await screen.mockMouse.click(2, 1)
     expect(
-      await screen.waitForFrame((frame) => frame.includes("▶")),
+      await screen.waitForFrame((frame) => frame.includes("▶ Task")),
     ).not.toContain("child")
     await screen.mockMouse.click(2, 1)
     await screen.waitForFrame((frame) => frame.includes("child"))
@@ -768,5 +680,5 @@ test("starts collapsed, updates counts while hidden and preserves choice on remo
   )
   expect(
     await remount.waitForFrame((frame) => frame.includes("child")),
-  ).toContain("▼ Subagents")
+  ).toContain("▼ Task")
 })

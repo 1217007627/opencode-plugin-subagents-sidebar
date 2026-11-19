@@ -125,11 +125,10 @@ export function formatDuration(
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  const pad = (value: number) => String(value).padStart(2, "0")
   if (days >= 1_000) return "999d+"
-  if (days) return `${days}d${pad(hours % 24)}h`
-  if (hours) return `${hours}h${pad(minutes % 60)}m`
-  if (minutes) return `${minutes}m${pad(seconds % 60)}s`
+  if (days) return `${days}d ${hours % 24}h`
+  if (hours) return `${hours}h ${minutes % 60}m`
+  if (minutes) return `${minutes}m ${seconds % 60}s`
   return `${seconds}s`
 }
 
@@ -137,6 +136,8 @@ export function buildRows(
   rootID: string,
   sessions: readonly SessionRecord[],
   statuses: ReadonlyMap<string, LiveStatus>,
+  now?: number,
+  startedAt?: number,
 ): Row[] {
   const records = new Map(sessions.map((session) => [session.id, session]))
   const children = new Map<string, SessionRecord[]>()
@@ -149,43 +150,79 @@ export function buildRows(
   const visited = new Set([rootID])
   const queue = [rootID]
   const descendants: SessionRecord[] = []
-  const tree = new Map<string, SessionRecord[]>()
   for (let i = 0; i < queue.length; i++) {
     for (const child of children.get(queue[i] ?? "") ?? []) {
       if (visited.has(child.id)) continue
       visited.add(child.id)
       queue.push(child.id)
       descendants.push(child)
-      const siblings = tree.get(queue[i] ?? "") ?? []
-      siblings.push(child)
-      tree.set(queue[i] ?? "", siblings)
     }
   }
   const active = (id: string) => {
     const live = statuses.get(id)
     return live === "running" || typeof live === "object"
   }
-  const activeBranches = new Set<string>()
+  const statusFor = (session: SessionRecord): Row["status"] => {
+    const live = statuses.get(session.id) ?? "unknown"
+    const outcome = {
+      succeeded: "Done",
+      failed: "Error",
+      interrupted: "Interrupted",
+    } as const
+    if (typeof live === "object") return "Waiting"
+    if (live === "running") return "Running"
+    if (live === "unknown") return "Unknown"
+    return session.outcome ? outcome[session.outcome] : "Idle"
+  }
+  const timeOf = (session: SessionRecord) =>
+    session.time.updated || session.time.created
+  const hidden = new Set<string>()
+  const MIN_PLAUSIBLE_TIME = 1_000_000_000_000
+  if (now !== undefined && now >= MIN_PLAUSIBLE_TIME) {
+    const day = new Date(now)
+    day.setHours(0, 0, 0, 0)
+    const dayStart = day.getTime()
+    const doneCutoff = Math.max(startedAt ?? 0, dayStart)
+    for (const session of descendants) {
+      if (session.time.created >= dayStart) continue
+      const stamp = timeOf(session)
+      if (stamp < MIN_PLAUSIBLE_TIME) continue
+      const status = statusFor(session)
+      if (status === "Done") {
+        if (stamp < doneCutoff) hidden.add(session.id)
+      } else if (now - stamp > 96 * 60 * 60 * 1000) {
+        hidden.add(session.id)
+      }
+    }
+  }
+  const keep = new Set(
+    descendants.filter((session) => !hidden.has(session.id)).map((s) => s.id),
+  )
   for (let i = descendants.length - 1; i >= 0; i--) {
     const row = descendants[i]
-    if (!row || (!active(row.id) && !activeBranches.has(row.id))) continue
-    activeBranches.add(row.id)
-    if (row.parentID) activeBranches.add(row.parentID)
+    if (!row || !keep.has(row.id)) continue
+    if (row.parentID) keep.add(row.parentID)
   }
-  for (const siblings of tree.values())
+  const shownTree = new Map<string, SessionRecord[]>()
+  for (const session of descendants) {
+    if (!keep.has(session.id)) continue
+    const parent = session.parentID ?? ""
+    const siblings = shownTree.get(parent) ?? []
+    siblings.push(session)
+    shownTree.set(parent, siblings)
+  }
+  for (const siblings of shownTree.values())
     siblings.sort(
       (a, b) =>
-        Number(activeBranches.has(b.id)) - Number(activeBranches.has(a.id)) ||
-        a.time.created - b.time.created ||
-        (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+        timeOf(b) - timeOf(a) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
     )
   const ordered: SessionRecord[] = []
-  const stack = [...(tree.get(rootID) ?? [])].reverse()
+  const stack = [...(shownTree.get(rootID) ?? [])].reverse()
   while (stack.length) {
     const row = stack.pop()
     if (!row) break
     ordered.push(row)
-    const nested = tree.get(row.id) ?? []
+    const nested = shownTree.get(row.id) ?? []
     for (let i = nested.length - 1; i >= 0; i--) {
       const child = nested[i]
       if (child) stack.push(child)
@@ -194,11 +231,6 @@ export function buildRows(
   return ordered.map((session) => {
     const live = statuses.get(session.id) ?? "unknown"
     const duration = executionDuration(session, live)
-    const outcome = {
-      succeeded: "Done",
-      failed: "Error",
-      interrupted: "Interrupted",
-    } as const
     return {
       id: session.id,
       ...(session.parentID && session.parentID !== rootID
@@ -207,16 +239,7 @@ export function buildRows(
       title: session.title?.trim() || session.id,
       active: active(session.id),
       ...(duration ? { duration } : {}),
-      status:
-        typeof live === "object"
-          ? "Waiting"
-          : live === "running"
-            ? "Running"
-            : live === "unknown"
-              ? "Unknown"
-              : session.outcome
-                ? outcome[session.outcome]
-                : "Idle",
+      status: statusFor(session),
     }
   })
 }

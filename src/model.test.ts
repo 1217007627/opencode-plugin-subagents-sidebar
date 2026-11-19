@@ -21,7 +21,7 @@ function record(
   }
 }
 
-test("active subtrees stay grouped below parents, ordered by sibling creation time and id", () => {
+test("subtrees stay grouped below parents, ordered by newest sibling first and id", () => {
   const rows = buildRows(
     "root",
     [
@@ -42,11 +42,11 @@ test("active subtrees stay grouped below parents, ordered by sibling creation ti
     ]),
   )
   expect(rows.map((r) => r.id)).toEqual([
+    "direct",
     "parent",
     "runner",
     "nested",
     "done-child",
-    "direct",
     "finished",
   ])
   expect(rows.find((r) => r.id === "parent")?.active).toBe(false)
@@ -57,11 +57,11 @@ test("active subtrees stay grouped below parents, ordered by sibling creation ti
       context,
     ]),
   ).toEqual([
+    ["direct", "", false],
     ["parent", "", false],
     ["runner", "├─ ", false],
     ["nested", "│  └─ ", false],
     ["done-child", "└─ ", false],
-    ["direct", "", false],
     ["finished", "", false],
   ])
   expect(
@@ -71,11 +71,77 @@ test("active subtrees stay grouped below parents, ordered by sibling creation ti
       context,
     ]),
   ).toEqual([
+    ["direct", "", false],
     ["parent", "", true],
     ["runner", "└─ ", false],
     ["nested", "   └─ ", false],
-    ["direct", "", false],
   ])
+})
+
+test("clears Done by session start/day and other statuses after 96 hours", () => {
+  const hour = 60 * 60 * 1_000
+  const now = new Date(2030, 5, 15, 12, 0, 0).getTime()
+  const startedAt = now - 2 * hour
+  const at = (id: string, created: number, updated: number, extra = {}) => ({
+    id,
+    ...extra,
+    time: { created, updated },
+  })
+  const rows = buildRows(
+    "root",
+    [
+      at("root", now - 100 * 24 * hour, now - 100 * 24 * hour),
+      at("done-after-start", now - 24 * hour, now - hour, {
+        parentID: "root",
+        outcome: "succeeded" as const,
+      }),
+      at("done-before-start", now - 48 * hour, now - 3 * hour, {
+        parentID: "root",
+        outcome: "succeeded" as const,
+      }),
+      at("error-95h", now - 95 * hour, now - 95 * hour, {
+        parentID: "root",
+        outcome: "failed" as const,
+      }),
+      at("error-97h", now - 97 * hour, now - 97 * hour, {
+        parentID: "root",
+        outcome: "failed" as const,
+      }),
+      at("running-95h", now - 95 * hour, now - 95 * hour, {
+        parentID: "root",
+      }),
+      at("running-97h", now - 97 * hour, now - 97 * hour, {
+        parentID: "root",
+      }),
+      at("old-parent", now - 72 * hour, now - 72 * hour, {
+        parentID: "root",
+        outcome: "succeeded" as const,
+      }),
+      at("fresh-child", now - 30 * 60 * 1_000, now - 30 * 60 * 1_000, {
+        parentID: "old-parent",
+      }),
+    ],
+    new Map<string, LiveStatus>([
+      ["done-after-start", "idle"],
+      ["done-before-start", "idle"],
+      ["error-95h", "idle"],
+      ["error-97h", "idle"],
+      ["running-95h", "running"],
+      ["running-97h", "running"],
+      ["old-parent", "idle"],
+      ["fresh-child", "idle"],
+    ]),
+    now,
+    startedAt,
+  )
+  expect(rows.map((r) => r.id)).toEqual([
+    "done-after-start",
+    "old-parent",
+    "fresh-child",
+    "error-95h",
+    "running-95h",
+  ])
+  expect(rows.find((r) => r.id === "old-parent")?.active).toBe(false)
 })
 
 test("Active keeps shared ancestors once and removes unused branches after completion/deletion", () => {
@@ -206,7 +272,7 @@ test.each([
   ).toBe(expected)
 })
 
-test("waiting is active and shares deterministic active-first ordering", () => {
+test("waiting is active and sorts with the newest sibling first", () => {
   const rows = buildRows(
     "root",
     [
@@ -221,8 +287,8 @@ test("waiting is active and shares deterministic active-first ordering", () => {
     ]),
   )
   expect(rows.map(({ id, active }) => ({ id, active }))).toEqual([
-    { id: "waiting", active: true },
     { id: "running", active: true },
+    { id: "waiting", active: true },
     { id: "failed", active: false },
   ])
 })
@@ -232,14 +298,15 @@ test.each([
   [999, "0s"],
   [1_000, "1s"],
   [59_999, "59s"],
-  [60_000, "1m00s"],
-  [192_000, "3m12s"],
-  [3_599_999, "59m59s"],
-  [3_600_000, "1h00m"],
-  [3_900_000, "1h05m"],
-  [86_399_999, "23h59m"],
-  [86_400_000, "1d00h"],
-  [183_600_000, "2d03h"],
+  [60_000, "1m 0s"],
+  [192_000, "3m 12s"],
+  [664_000, "11m 4s"],
+  [3_599_999, "59m 59s"],
+  [3_600_000, "1h 0m"],
+  [3_900_000, "1h 5m"],
+  [86_399_999, "23h 59m"],
+  [86_400_000, "1d 0h"],
+  [183_600_000, "2d 3h"],
   [86_400_000_000, "999d+"],
 ] as const)("duration formatting %dms → %s", (elapsed, expected) => {
   expect(formatDuration({ start: 10_000 }, 10_000 + elapsed)).toBe(expected)

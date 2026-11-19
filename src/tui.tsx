@@ -19,6 +19,18 @@ import { createOpenCodeSource } from "./opencode-source"
 // Preferences survive sidebar unmounts and navigation within a plugin context.
 // Weak keys release the state when OpenCode unloads the plugin context.
 type Filter = "all" | "active"
+const SPINNER_FRAMES = [
+  "⠋",
+  "⠙",
+  "⠹",
+  "⠸",
+  "⠼",
+  "⠴",
+  "⠦",
+  "⠧",
+  "⠇",
+  "⠏",
+] as const
 const preferences = new WeakMap<
   Plugin.Context,
   {
@@ -26,6 +38,7 @@ const preferences = new WeakMap<
     filter: Signal<Filter>
   }
 >()
+const sessionStarts = new WeakMap<Plugin.Context, number>()
 
 export function Sidebar(props: {
   context: Plugin.Context
@@ -34,33 +47,17 @@ export function Sidebar(props: {
   let preference = preferences.get(props.context)
   if (!preference) {
     preference = {
-      expanded: createSignal(false),
+      expanded: createSignal(true),
       filter: createSignal<Filter>("all"),
     }
     preferences.set(props.context, preference)
   }
   const [expanded, setExpanded] = preference.expanded
-  const [filter, setFilter] = preference.filter
+  const [filter] = preference.filter
   const [view, setView] = createSignal<View>({ phase: "loading", rows: [] })
-  const activeRows = createMemo(() => view().rows.filter((row) => row.active))
-  const counts = createMemo(() => {
-    const result = { running: 0, waiting: 0, errors: 0 }
-    for (const row of view().rows) {
-      if (row.status === "Running") result.running++
-      if (row.status === "Waiting") result.waiting++
-      if (row.status === "Error") result.errors++
-    }
-    return result
-  })
-  const attention = () => counts().waiting > 0 || counts().errors > 0
-  const summary = () =>
-    [
-      counts().running ? `${counts().running} running` : "",
-      counts().waiting ? `${counts().waiting} waiting` : "",
-      counts().errors
-        ? `${counts().errors} error${counts().errors === 1 ? "" : "s"}`
-        : "",
-    ].filter(Boolean)
+  const runningCount = createMemo(
+    () => view().rows.filter((row) => row.status === "Running").length,
+  )
   const visibleRows = createMemo(() =>
     treeRows(view().rows, filter() === "active"),
   )
@@ -68,20 +65,36 @@ export function Sidebar(props: {
     () => visibleRows().filter((row) => row.context).length,
   )
   const [now, setNow] = createSignal(Date.now())
-  const columnWidths = createMemo(() => {
-    let status = 0
-    let duration = 0
-    for (const row of visibleRows()) {
-      status = Math.max(status, row.status.length)
-      duration = Math.max(duration, formatDuration(row.duration, now()).length)
-    }
-    return { status, duration }
+  const durationWidth = createMemo(() => {
+    let width = 0
+    for (const row of visibleRows())
+      width = Math.max(width, formatDuration(row.duration, now()).length)
+    return width
+  })
+  const [frame, setFrame] = createSignal(0)
+  const animating = createMemo(
+    () =>
+      view().phase === "ready" &&
+      visibleRows().some(
+        (row) => row.status === "Running" || row.status === "Waiting",
+      ),
+  )
+  createEffect(() => {
+    if (!expanded() || !animating()) return
+    const timer = setInterval(
+      () => setFrame((value) => (value + 1) % SPINNER_FRAMES.length),
+      100,
+    )
+    onCleanup(() => clearInterval(timer))
   })
   createEffect(() => {
     if (!expanded() || view().phase !== "ready") return
-    const rows = visibleRows()
     setNow(Date.now())
-    if (!rows.some((row) => row.duration && row.duration.end === undefined))
+    if (
+      !visibleRows().some(
+        (row) => row.duration && row.duration.end === undefined,
+      )
+    )
       return
     const timer = setInterval(() => setNow(Date.now()), 1_000)
     onCleanup(() => clearInterval(timer))
@@ -89,25 +102,33 @@ export function Sidebar(props: {
   const controller = createController(
     createOpenCodeSource(props.context),
     setView,
+    sessionStarts.get(props.context),
   )
   createEffect(() => {
     void controller.select(props.sessionID)
   })
   onCleanup(() => controller.dispose())
-  const color = (row: Row) => {
+  const icon = (row: Row) => {
+    switch (row.status) {
+      case "Running":
+      case "Waiting":
+        return SPINNER_FRAMES[frame() % SPINNER_FRAMES.length] ?? ""
+      case "Done":
+        return "✓"
+      default:
+        return "✗"
+    }
+  }
+  const iconColor = (row: Row) => {
     const text = props.context.theme.text
     switch (row.status) {
       case "Running":
-        return text.feedback.info.base
-      case "Done":
-        return text.feedback.success.base
-      case "Error":
-        return text.feedback.error.base
-      case "Interrupted":
       case "Waiting":
-        return text.feedback.warning.base
-      default:
+        return text.feedback.success.base
+      case "Done":
         return text.muted
+      default:
+        return text.feedback.error.base
     }
   }
   return (
@@ -120,28 +141,15 @@ export function Sidebar(props: {
           if (event.button === 0) setExpanded((value) => !value)
         }}
       >
-        <b>{expanded() ? "▼" : "▶"} Subagents</b>
+        <b>{expanded() ? "▼" : "▶"} Task</b>
         {view().phase === "ready"
-          ? ` · ${view().rows.length}${!expanded() && !attention() && counts().running ? ` · ${counts().running} running` : ""}`
+          ? expanded()
+            ? ""
+            : ` (${runningCount()} running)`
           : view().phase === "loading"
             ? " · Loading…"
             : " · Error"}
       </text>
-      <Show when={!expanded() && view().phase === "ready" && attention()}>
-        <box width="100%" flexDirection="row" flexWrap="wrap" gap={1}>
-          <For each={summary()}>
-            {(count) => (
-              <text
-                flexShrink={0}
-                wrapMode="none"
-                fg={props.context.theme.text.feedback.warning.base}
-              >
-                {count}
-              </text>
-            )}
-          </For>
-        </box>
-      </Show>
       <Show when={expanded()}>
         <Switch>
           <Match when={view().phase === "loading"}>
@@ -161,41 +169,12 @@ export function Sidebar(props: {
             </text>
           </Match>
           <Match when={view().phase === "ready"}>
-            <box flexDirection="row" gap={1} width="100%" height={1}>
-              <For each={["all", "active"] as const}>
-                {(mode) => (
-                  <text
-                    fg={
-                      filter() === mode
-                        ? props.context.theme.text.base
-                        : props.context.theme.text.muted
-                    }
-                    wrapMode="none"
-                    truncate
-                    onMouseUp={(event) => {
-                      if (event.button === 0) setFilter(mode)
-                    }}
-                  >
-                    {`${filter() === mode ? "[" : ""}${mode === "all" ? "All" : "Active"} (${mode === "all" ? view().rows.length : activeRows().length})${filter() === mode ? "]" : ""}`}
-                  </text>
-                )}
-              </For>
-            </box>
             <Show when={contextCount() > 0}>
               <text fg={props.context.theme.text.muted}>
                 {`+ ${contextCount()} context (·)`}
               </text>
             </Show>
-            <For
-              each={visibleRows()}
-              fallback={
-                <text fg={props.context.theme.text.muted}>
-                  {filter() === "active" && view().rows.length
-                    ? "No active subagents"
-                    : "No subagents"}
-                </text>
-              }
-            >
+            <For each={visibleRows()}>
               {(row) => (
                 <box
                   height={1}
@@ -210,6 +189,14 @@ export function Sidebar(props: {
                       })
                   }}
                 >
+                  <text
+                    width={1}
+                    flexShrink={0}
+                    wrapMode="none"
+                    fg={iconColor(row)}
+                  >
+                    {icon(row)}
+                  </text>
                   <box
                     flexGrow={1}
                     flexShrink={1}
@@ -243,28 +230,25 @@ export function Sidebar(props: {
                       truncate
                       wrapMode="none"
                       fg={
-                        row.context
+                        row.context ||
+                        row.status === "Done" ||
+                        row.status === "Error" ||
+                        row.status === "Interrupted"
                           ? props.context.theme.text.muted
-                          : props.context.theme.text.base
+                          : row.status === "Running" || row.status === "Waiting"
+                            ? props.context.theme.text.feedback.success.base
+                            : props.context.theme.text.base
                       }
                     >
                       {row.title.replace(/[\r\n\t]/g, " ")}
                     </text>
                   </box>
                   <text
-                    width={columnWidths().status}
-                    flexShrink={0}
-                    wrapMode="none"
-                    fg={color(row)}
-                  >
-                    {row.status}
-                  </text>
-                  <text
-                    width={columnWidths().duration}
+                    width={durationWidth()}
                     flexShrink={0}
                     textAlign="right"
                     wrapMode="none"
-                    fg={color(row)}
+                    fg={props.context.theme.text.muted}
                   >
                     {formatDuration(row.duration, now())}
                   </text>
@@ -487,6 +471,7 @@ function SubagentPicker(props: {
 export default Plugin.define({
   id: "opencode.subagents-sidebar",
   setup(context) {
+    sessionStarts.set(context, Date.now())
     let disposed = false
     let closePicker: (() => void) | undefined
     context.keymap.layer(() => ({

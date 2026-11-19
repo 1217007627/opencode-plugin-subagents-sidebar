@@ -29,6 +29,7 @@ export type View = {
 export function createController(
   source: Source,
   publish: (view: View) => void,
+  startedAt?: number,
 ) {
   let generation = 0
   let selected: string | undefined
@@ -189,7 +190,13 @@ export function createController(
     publish({
       phase: "ready",
       rootID: root.id,
-      rows: buildRows(root.id, [...sessions.values()], statuses),
+      rows: buildRows(
+        root.id,
+        [...sessions.values()],
+        statuses,
+        Date.now(),
+        startedAt,
+      ),
     })
   }
 

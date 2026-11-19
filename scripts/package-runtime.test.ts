@@ -38,9 +38,7 @@ test("packed npm entry renders and navigates from node_modules using shared runt
       import { Sidebar } from ${JSON.stringify(entry)};
       const fixture = contextFixture();
       await using screen = await testRender(() => <Sidebar context={fixture.context} sessionID="root" />, { width: 28, height: 12 });
-      await screen.waitForFrame(frame => frame.includes("▶ Subagents · 1"));
-      await screen.mockMouse.click(2, 1);
-      await screen.waitForFrame(frame => frame.includes("child") && frame.includes("Idle"));
+      await screen.waitForFrame(frame => frame.includes("child") && frame.includes("✗") && frame.includes("—"));
       const lines = screen.captureCharFrame().split("\\n");
       const y = lines.findIndex(line => line.includes("child"));
       await screen.mockMouse.click(2, y);
