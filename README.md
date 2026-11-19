@@ -1,8 +1,8 @@
 # OpenCode Subagents Sidebar
 
-[![CI](https://github.com/1217007627/opencode-plugin-subagents-sidebar/actions/workflows/ci.yml/badge.svg)](https://github.com/1217007627/opencode-plugin-subagents-sidebar/actions/workflows/ci.yml)
-[![GitHub release](https://img.shields.io/github/v/release/1217007627/opencode-plugin-subagents-sidebar)](https://github.com/1217007627/opencode-plugin-subagents-sidebar/releases/latest)
-[![MIT license](https://img.shields.io/github/license/1217007627/opencode-plugin-subagents-sidebar)](LICENSE)
+[![CI](https://github.com/1217007627/opencode-subagent-monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/1217007627/opencode-subagent-monitor/actions/workflows/ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/1217007627/opencode-subagent-monitor)](https://github.com/1217007627/opencode-subagent-monitor/releases/latest)
+[![MIT license](https://img.shields.io/github/license/1217007627/opencode-subagent-monitor)](LICENSE)
 [![OpenCode V2](https://img.shields.io/badge/OpenCode-V2%202.2.5-18181b)](docs/compatibility.md)
 
 **A live subagent monitor for the OpenCode terminal UI.** Track parallel AI agents
@@ -12,20 +12,20 @@ without losing sight of the rest of the session tree.
 
 [Installation](#installation) · [Features](#features) ·
 [Compatibility](docs/compatibility.md) · [Contributing](CONTRIBUTING.md) ·
-[Report a bug](https://github.com/1217007627/opencode-plugin-subagents-sidebar/issues/new?template=bug_report.yml)
+[Report a bug](https://github.com/1217007627/opencode-subagent-monitor/issues/new?template=bug_report.yml)
 
-**Available on [npm](https://www.npmjs.com/package/opencode-plugin-subagents-sidebar/v/0.2.1) and as a [GitHub release](https://github.com/1217007627/opencode-plugin-subagents-sidebar/releases/tag/v0.2.1).**
+**Available on [npm](https://www.npmjs.com/package/opencode-subagent-monitor/v/0.2.1) and as a [GitHub release](https://github.com/1217007627/opencode-subagent-monitor/releases/tag/v0.2.1).**
 
 ## Quick start
 
 Tested with **OpenCode V2 2.2.5**. Back up `~/.config/opencode/cli.json`
 (or `$XDG_CONFIG_HOME/opencode/cli.json`) and append
-`"opencode-plugin-subagents-sidebar@0.2.1"` to its existing `plugins` array:
+`"opencode-subagent-monitor@0.2.1"` to its existing `plugins` array:
 
 ```json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["opencode-plugin-subagents-sidebar@0.2.1"],
+  "plugins": ["opencode-subagent-monitor@0.2.1"],
   "session": { "sidebar": "auto" }
 }
 ```
@@ -176,7 +176,7 @@ Tested with **OpenCode V2 2.2.5**. CI runs on Linux and macOS; see the
 
 ### GitHub release
 
-Download `opencode-plugin-subagents-sidebar-0.2.1.tgz` from the GitHub release,
+Download `opencode-subagent-monitor-0.2.1.tgz` from the GitHub release,
 extract it to a permanent directory, and add the absolute path of the extracted
 `package` directory to `cli.json` as shown below. OpenCode supplies the runtime;
 the release archive does not need a separate dependency installation.
@@ -186,8 +186,8 @@ the release archive does not need a separate dependency installation.
 Clone this repository and install development dependencies with Bun 1.3.13:
 
 ```sh
-git clone --branch v0.2.1 https://github.com/1217007627/opencode-plugin-subagents-sidebar.git
-cd opencode-plugin-subagents-sidebar
+git clone --branch v0.2.1 https://github.com/1217007627/opencode-subagent-monitor.git
+cd opencode-subagent-monitor
 bun install --frozen-lockfile
 bun run check
 bun run package:check
@@ -203,7 +203,7 @@ to its existing `plugins` array. Replace the example path with your own:
 ```json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["/absolute/path/to/opencode-plugin-subagents-sidebar"],
+  "plugins": ["/absolute/path/to/opencode-subagent-monitor"],
   "session": { "sidebar": "auto" }
 }
 ```
@@ -246,7 +246,7 @@ fetch tags and switch to the desired release tag before running the checks.
 - No section: verify the package path and inspect
   `~/.local/share/opencode/log/opencode.log` for plugin loading errors.
 - Include OpenCode version, OS, installation method and reproduction steps in an
-  [issue](https://github.com/1217007627/opencode-plugin-subagents-sidebar/issues).
+  [issue](https://github.com/1217007627/opencode-subagent-monitor/issues).
   Remove private task names, paths and credentials from logs.
 
 The plugin reads session metadata and pending-request lists through OpenCode's authenticated client; it

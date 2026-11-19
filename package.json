@@ -1,5 +1,5 @@
 {
-  "name": "opencode-plugin-subagents-sidebar",
+  "name": "opencode-subagent-monitor",
   "version": "0.2.1",
   "description": "OpenCode plugin for live subagent monitoring, nested task status and clickable session navigation in a collapsible terminal sidebar",
   "type": "module",
@@ -7,11 +7,11 @@
   "author": "Sergey Natalenko (andy-takker)",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andy-takker/opencode-plugin-subagents-sidebar.git"
+    "url": "git+https://github.com/1217007627/opencode-subagent-monitor.git"
   },
-  "homepage": "https://github.com/andy-takker/opencode-plugin-subagents-sidebar#readme",
+  "homepage": "https://github.com/1217007627/opencode-subagent-monitor#readme",
   "bugs": {
-    "url": "https://github.com/andy-takker/opencode-plugin-subagents-sidebar/issues"
+    "url": "https://github.com/1217007627/opencode-subagent-monitor/issues"
   },
   "keywords": [
     "opencode",

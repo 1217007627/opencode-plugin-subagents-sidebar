@@ -14,7 +14,7 @@ describe the development/runtime contract, not a guarantee of host API stability
 OpenCode V1 is unsupported. Tests use the official renderer at 28 columns, with
 Unicode titles, click navigation and lifecycle cleanup.
 
-[CI run 41196041900](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/actions/runs/41196041900)
+[CI run 41196041900](https://github.com/1217007627/opencode-subagent-monitor/actions/runs/41196041900)
 passed on both `ubuntu-latest` and `macos-latest` at commit `491a81c`:
 frozen install, strict types, lint, formatting, all 29 tests, and package checks.
 

@@ -9,7 +9,7 @@ the publish job runs only when the repository Actions variable
 
 ## One-time setup
 
-The repository is `andy-takker/opencode-plugin-subagents-sidebar`. Verify npm
+The repository is `1217007627/opencode-subagent-monitor`. Verify npm
 ownership of the exact unscoped name; a registry 404 is not a reservation.
 The first publication may require a maintainer's interactive npm login/2FA to
 establish package ownership before package-level trusted publishing is available.

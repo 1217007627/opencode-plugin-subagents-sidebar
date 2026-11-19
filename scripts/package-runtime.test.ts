@@ -11,7 +11,7 @@ test("packed npm entry renders and navigates from node_modules using shared runt
     const archive = join(dir, "plugin.tgz")
     await checkPackage(project, archive)
     const modules = join(dir, "node_modules")
-    const root = join(modules, "opencode-plugin-subagents-sidebar")
+    const root = join(modules, "opencode-subagent-monitor")
     await mkdir(root, { recursive: true })
     const unpack = Bun.spawnSync([
       "tar",

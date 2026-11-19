@@ -52,11 +52,11 @@ export function navigationFixture(...args: Parameters<typeof contextFixture>) {
     command: () =>
       layers
         .flatMap((factory) => factory().commands ?? [])
-        .find((command) => command.id === "opencode.subagents-sidebar.open"),
+        .find((command) => command.id === "opencode.task-sidebar.open"),
     open: () =>
       layers
         .flatMap((factory) => factory().commands ?? [])
-        .find((command) => command.id === "opencode.subagents-sidebar.open")
+        .find((command) => command.id === "opencode.task-sidebar.open")
         ?.run(),
   }
 }

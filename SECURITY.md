@@ -1,7 +1,7 @@
 # Security policy
 
 Report vulnerabilities privately using
-[GitHub private vulnerability reporting](https://github.com/andy-takker/opencode-plugin-subagents-sidebar/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/1217007627/opencode-subagent-monitor/security/advisories/new).
 Private reporting is enabled on the repository. Include affected versions,
 reproduction steps and impact; exclude credentials and unrelated session data.
 Do not post exploit details in public issues before coordinated disclosure.

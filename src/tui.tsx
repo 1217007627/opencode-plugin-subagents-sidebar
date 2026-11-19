@@ -469,7 +469,7 @@ function SubagentPicker(props: {
 }
 
 export default Plugin.define({
-  id: "opencode.subagents-sidebar",
+  id: "opencode.task-sidebar",
   setup(context) {
     sessionStarts.set(context, Date.now())
     let disposed = false
@@ -478,9 +478,9 @@ export default Plugin.define({
       mode: "global",
       commands: [
         {
-          id: "opencode.subagents-sidebar.open",
+          id: "opencode.task-sidebar.open",
           title: "Open subagent",
-          group: "Subagents",
+          group: "Task",
           palette: true,
           slash: { name: "subagents" },
           enabled: () =>
