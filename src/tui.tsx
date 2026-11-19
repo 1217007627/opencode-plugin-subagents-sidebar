@@ -38,8 +38,6 @@ const preferences = new WeakMap<
     filter: Signal<Filter>
   }
 >()
-const sessionStarts = new WeakMap<Plugin.Context, number>()
-
 export function Sidebar(props: {
   context: Plugin.Context
   sessionID: string
@@ -102,7 +100,6 @@ export function Sidebar(props: {
   const controller = createController(
     createOpenCodeSource(props.context),
     setView,
-    sessionStarts.get(props.context),
   )
   createEffect(() => {
     void controller.select(props.sessionID)
@@ -471,7 +468,6 @@ function SubagentPicker(props: {
 export default Plugin.define({
   id: "opencode.task-sidebar",
   setup(context) {
-    sessionStarts.set(context, Date.now())
     let disposed = false
     let closePicker: (() => void) | undefined
     context.keymap.layer(() => ({

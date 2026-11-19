@@ -99,13 +99,12 @@ list. Each subtree stays together: a parent always precedes its children, so an
 older parent can appear above newer children. Direct children of the current
 root have no connector, and the current root itself is not a row.
 
-Old work is cleared automatically. `Done` tasks are kept only if last updated
-after OpenCode started **and** today — startup and each new day act as a clear
-point. Every other status (`Error`, `Interrupted`, `Running`, `Waiting`, `Idle`,
-`Unknown`) is dropped once its last update is more than 96 hours old, so tasks
-from a weekend do not linger. Tasks created today are always kept. A hidden task
-is still shown as an ancestor when a visible descendant needs it to keep the
-tree connected.
+Old work is cleared automatically based on the last update time. `Done` tasks
+are kept only if last updated within the last 3 hours. Every other status
+(`Error`, `Interrupted`, `Running`, `Waiting`, `Idle`, `Unknown`) is dropped once
+its last update is more than 96 hours old, so tasks from a weekend do not
+linger. A hidden task is still shown as an ancestor when a visible descendant
+needs it to keep the tree connected.
 
 Connectors occupy at most six columns. At depths beyond two nested levels, `…`
 replaces the earlier path (`…  └─`); it does not mean nodes were omitted. The

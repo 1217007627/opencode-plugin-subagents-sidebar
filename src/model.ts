@@ -137,7 +137,6 @@ export function buildRows(
   sessions: readonly SessionRecord[],
   statuses: ReadonlyMap<string, LiveStatus>,
   now?: number,
-  startedAt?: number,
 ): Row[] {
   const records = new Map(sessions.map((session) => [session.id, session]))
   const children = new Map<string, SessionRecord[]>()
@@ -179,20 +178,13 @@ export function buildRows(
   const hidden = new Set<string>()
   const MIN_PLAUSIBLE_TIME = 1_000_000_000_000
   if (now !== undefined && now >= MIN_PLAUSIBLE_TIME) {
-    const day = new Date(now)
-    day.setHours(0, 0, 0, 0)
-    const dayStart = day.getTime()
-    const doneCutoff = Math.max(startedAt ?? 0, dayStart)
     for (const session of descendants) {
-      if (session.time.created >= dayStart) continue
       const stamp = timeOf(session)
       if (stamp < MIN_PLAUSIBLE_TIME) continue
       const status = statusFor(session)
-      if (status === "Done") {
-        if (stamp < doneCutoff) hidden.add(session.id)
-      } else if (now - stamp > 96 * 60 * 60 * 1000) {
-        hidden.add(session.id)
-      }
+      const threshold =
+        status === "Done" ? 3 * 60 * 60 * 1000 : 96 * 60 * 60 * 1000
+      if (now - stamp > threshold) hidden.add(session.id)
     }
   }
   const keep = new Set(

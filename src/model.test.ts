@@ -102,10 +102,9 @@ test("sibling order follows creation time and stays fixed when tasks update", ()
   expect(ids()).toEqual(["newer", "older"])
 })
 
-test("clears Done by session start/day and other statuses after 96 hours", () => {
+test("keeps Done for 3 hours and other statuses for 96 hours", () => {
   const hour = 60 * 60 * 1_000
   const now = new Date(2030, 5, 15, 12, 0, 0).getTime()
-  const startedAt = now - 2 * hour
   const at = (id: string, created: number, updated: number, extra = {}) => ({
     id,
     ...extra,
@@ -115,11 +114,11 @@ test("clears Done by session start/day and other statuses after 96 hours", () =>
     "root",
     [
       at("root", now - 100 * 24 * hour, now - 100 * 24 * hour),
-      at("done-after-start", now - 24 * hour, now - hour, {
+      at("done-2h", now - 48 * hour, now - 2 * hour, {
         parentID: "root",
         outcome: "succeeded" as const,
       }),
-      at("done-before-start", now - 48 * hour, now - 3 * hour, {
+      at("done-4h", now - 48 * hour, now - 4 * hour, {
         parentID: "root",
         outcome: "succeeded" as const,
       }),
@@ -146,8 +145,8 @@ test("clears Done by session start/day and other statuses after 96 hours", () =>
       }),
     ],
     new Map<string, LiveStatus>([
-      ["done-after-start", "idle"],
-      ["done-before-start", "idle"],
+      ["done-2h", "idle"],
+      ["done-4h", "idle"],
       ["error-95h", "idle"],
       ["error-97h", "idle"],
       ["running-95h", "running"],
@@ -156,10 +155,9 @@ test("clears Done by session start/day and other statuses after 96 hours", () =>
       ["fresh-child", "idle"],
     ]),
     now,
-    startedAt,
   )
   expect(rows.map((r) => r.id)).toEqual([
-    "done-after-start",
+    "done-2h",
     "old-parent",
     "fresh-child",
     "error-95h",
