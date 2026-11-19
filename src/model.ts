@@ -183,7 +183,7 @@ export function buildRows(
       if (stamp < MIN_PLAUSIBLE_TIME) continue
       const status = statusFor(session)
       const threshold =
-        status === "Done" ? 3 * 60 * 60 * 1000 : 96 * 60 * 60 * 1000
+        status === "Done" ? 2 * 60 * 60 * 1000 : 96 * 60 * 60 * 1000
       if (now - stamp > threshold) hidden.add(session.id)
     }
   }

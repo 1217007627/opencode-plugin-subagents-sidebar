@@ -102,7 +102,7 @@ test("sibling order follows creation time and stays fixed when tasks update", ()
   expect(ids()).toEqual(["newer", "older"])
 })
 
-test("keeps Done for 3 hours and other statuses for 96 hours", () => {
+test("keeps Done for 2 hours and other statuses for 96 hours", () => {
   const hour = 60 * 60 * 1_000
   const now = new Date(2030, 5, 15, 12, 0, 0).getTime()
   const at = (id: string, created: number, updated: number, extra = {}) => ({
@@ -114,11 +114,11 @@ test("keeps Done for 3 hours and other statuses for 96 hours", () => {
     "root",
     [
       at("root", now - 100 * 24 * hour, now - 100 * 24 * hour),
-      at("done-2h", now - 48 * hour, now - 2 * hour, {
+      at("done-1h", now - 48 * hour, now - 1 * hour, {
         parentID: "root",
         outcome: "succeeded" as const,
       }),
-      at("done-4h", now - 48 * hour, now - 4 * hour, {
+      at("done-3h", now - 48 * hour, now - 3 * hour, {
         parentID: "root",
         outcome: "succeeded" as const,
       }),
@@ -145,8 +145,8 @@ test("keeps Done for 3 hours and other statuses for 96 hours", () => {
       }),
     ],
     new Map<string, LiveStatus>([
-      ["done-2h", "idle"],
-      ["done-4h", "idle"],
+      ["done-1h", "idle"],
+      ["done-3h", "idle"],
       ["error-95h", "idle"],
       ["error-97h", "idle"],
       ["running-95h", "running"],
@@ -157,7 +157,7 @@ test("keeps Done for 3 hours and other statuses for 96 hours", () => {
     now,
   )
   expect(rows.map((r) => r.id)).toEqual([
-    "done-2h",
+    "done-1h",
     "old-parent",
     "fresh-child",
     "error-95h",
