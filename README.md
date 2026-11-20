@@ -100,7 +100,7 @@ older parent can appear above newer children. Direct children of the current
 root have no connector, and the current root itself is not a row.
 
 Old work is cleared automatically based on the last update time. `Done` tasks
-are kept only if last updated within the last 2 hours. Every other status
+are kept only if last updated within the last 8 hours. Every other status
 (`Error`, `Interrupted`, `Running`, `Waiting`, `Idle`, `Unknown`) is dropped once
 its last update is more than 96 hours old, so tasks from a weekend do not
 linger. A hidden task is still shown as an ancestor when a visible descendant

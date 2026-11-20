@@ -102,7 +102,7 @@ test("sibling order follows creation time and stays fixed when tasks update", ()
   expect(ids()).toEqual(["newer", "older"])
 })
 
-test("keeps Done for 2 hours and other statuses for 96 hours", () => {
+test("keeps Done for 8 hours and other statuses for 96 hours", () => {
   const hour = 60 * 60 * 1_000
   const now = new Date(2030, 5, 15, 12, 0, 0).getTime()
   const at = (id: string, created: number, updated: number, extra = {}) => ({
@@ -118,7 +118,7 @@ test("keeps Done for 2 hours and other statuses for 96 hours", () => {
         parentID: "root",
         outcome: "succeeded" as const,
       }),
-      at("done-3h", now - 48 * hour, now - 3 * hour, {
+      at("done-9h", now - 48 * hour, now - 9 * hour, {
         parentID: "root",
         outcome: "succeeded" as const,
       }),
@@ -146,7 +146,7 @@ test("keeps Done for 2 hours and other statuses for 96 hours", () => {
     ],
     new Map<string, LiveStatus>([
       ["done-1h", "idle"],
-      ["done-3h", "idle"],
+      ["done-9h", "idle"],
       ["error-95h", "idle"],
       ["error-97h", "idle"],
       ["running-95h", "running"],
